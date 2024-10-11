@@ -68,6 +68,12 @@ class PGAgent(nn.Module):
         # way. obs, actions, rewards, terminals, and q_values should all be arrays with a leading dimension of `batch_size`
         # beyond this point.
 
+        q_values = np.array(q_values)
+        obs = np.array(obs)
+        actions = np.array(action)
+        terminal = np.array(terminals)
+        rewards = np.array(rewards)
+        
         # step 2: calculate advantages from Q values
         advantages: np.ndarray = self._estimate_advantage(
             obs, rewards, q_values, terminals
@@ -75,7 +81,7 @@ class PGAgent(nn.Module):
 
         # step 3: use all datapoints (s_t, a_t, adv_t) to update the PG actor/policy
         # TODO: update the PG actor/policy network once using the advantages
-        info: dict = None
+        info: dict = self.actor.update(obs, actions, advantages)
 
         # step 4: if needed, use all datapoints (s_t, a_t, q_t) to update the PG critic/baseline
         if self.critic is not None:
@@ -94,12 +100,17 @@ class PGAgent(nn.Module):
             # trajectory at each point.
             # In other words: Q(s_t, a_t) = sum_{t'=0}^T gamma^t' r_{t'}
             # TODO: use the helper function self._discounted_return to calculate the Q-values
-            q_values = None
+            q_values = []
+            for reward in rewards:
+                q_values.append(self._discounted_return(reward.tolist()))
+                 
         else:
             # Case 2: in reward-to-go PG, we only use the rewards after timestep t to estimate the Q-value for (s_t, a_t).
             # In other words: Q(s_t, a_t) = sum_{t'=t}^T gamma^(t'-t) * r_{t'}
             # TODO: use the helper function self._discounted_reward_to_go to calculate the Q-values
-            q_values = None
+            q_values = []
+            for rew in rewards:
+                q_values.append(np.array(self._discounted_reward_to_go(rew.tolist())))
 
         return q_values
 
@@ -116,7 +127,7 @@ class PGAgent(nn.Module):
         """
         if self.critic is None:
             # TODO: if no baseline, then what are the advantages?
-            advantages = None
+            advantages = q_values 
         else:
             # TODO: run the critic and use it as a baseline
             values = None
@@ -156,7 +167,15 @@ class PGAgent(nn.Module):
         Note that all entries of the output list should be the exact same because each sum is from 0 to T (and doesn't
         involve t)!
         """
-        return None
+        discRew = []
+        t = 0
+        qValue = 0
+        
+        for r in rewards:
+            qValue += r*(self.gamma**t)
+            t += 1
+        discRew = [qValue]*len(rewards)
+        return discRew
 
 
     def _discounted_reward_to_go(self, rewards: Sequence[float]) -> Sequence[float]:
