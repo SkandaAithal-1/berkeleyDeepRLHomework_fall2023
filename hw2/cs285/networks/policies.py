@@ -59,9 +59,10 @@ class MLPPolicy(nn.Module):
     def get_action(self, obs: np.ndarray) -> np.ndarray:
         """Takes a single observation (as a numpy array) and returns a single action (as a numpy array)."""
         # TODO: implement get_action
-        action = torch.argmax(self.forward(torch.tensor(obs)))
+        action = torch.argmax(torch.tensor(self.forward(torch.tensor(obs))))
+        #print(f"Here in action : {action}, action type : {action.dtype}")
 
-        return action
+        return int(action)
 
     def forward(self, obs: torch.FloatTensor):
         """
@@ -72,10 +73,12 @@ class MLPPolicy(nn.Module):
         if self.discrete:
             # TODO: define the forward pass for a policy with a discrete action space.
             result = self.logits_net(obs)
-            logProbs = nn.LogSoftmax(result)
+            logProbs = F.log_softmax(result)
         else:
             # TODO: define the forward pass for a policy with a continuous action space.
-            pass
+            # TODO: Change this later
+            logProbs = self.logits_net(obs)
+            
         return logProbs
 
     def update(self, obs: np.ndarray, actions: np.ndarray, *args, **kwargs) -> dict:
@@ -93,14 +96,14 @@ class MLPPolicyPG(MLPPolicy):
         advantages: np.ndarray,
     ) -> dict:
         """Implements the policy gradient actor update."""
-        obs = ptu.from_numpy(obs)
-        actions = ptu.from_numpy(actions)
-        advantages = ptu.from_numpy(advantages)
+        obs = ptu.from_numpy(obs).to(ptu.device)
+        actions = ptu.from_numpy(actions).to(ptu.device)
+        advantages = ptu.from_numpy(advantages).to(ptu.device)
 
         # TODO: implement the policy gradient actor update.
-        lossFn = nn.NLLLoss(reduction = None)
+        lossFn = nn.NLLLoss(reduction = 'none')
         self.optimizer.zero_grad()
-        loss = torch.sum(torch.dot(lossFn(self.forward(obs), actions), advantages[:, 0]))
+        loss = torch.sum(torch.dot(lossFn(self.forward(obs), actions.type(torch.LongTensor).to(ptu.device)), advantages))
         loss.backward()
 
         return {

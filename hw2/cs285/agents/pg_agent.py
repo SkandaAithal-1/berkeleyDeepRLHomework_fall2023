@@ -68,11 +68,21 @@ class PGAgent(nn.Module):
         # way. obs, actions, rewards, terminals, and q_values should all be arrays with a leading dimension of `batch_size`
         # beyond this point.
 
-        q_values = np.array(q_values)
-        obs = np.array(obs)
-        actions = np.array(action)
-        terminal = np.array(terminals)
-        rewards = np.array(rewards)
+        q_values = np.array([item for q in q_values for item in q])
+        obs = np.array([item for ob in obs for item in ob])
+        actions = np.array([item for ac in actions for item in ac], dtype = np.int32)
+        terminal = np.array([item for ter in terminals for item in ter])
+        rewards = np.array([item for rew in rewards for item in rew])
+
+
+        '''
+        q_values = np.asarray(q_values)
+        obs = np.asarray(obs)
+        actions = np.asarray(actions)
+        terminal = np.asarray(terminals)
+        rewards = np.asarray(rewards)
+        '''
+        
         
         # step 2: calculate advantages from Q values
         advantages: np.ndarray = self._estimate_advantage(
@@ -175,7 +185,7 @@ class PGAgent(nn.Module):
             qValue += r*(self.gamma**t)
             t += 1
         discRew = [qValue]*len(rewards)
-        return discRew
+        return np.array(discRew)
 
 
     def _discounted_reward_to_go(self, rewards: Sequence[float]) -> Sequence[float]:

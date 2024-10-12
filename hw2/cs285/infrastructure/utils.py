@@ -30,7 +30,7 @@ def sample_trajectory(
             )
 
         # TODO use the most recent ob and the policy to decide what to do
-        ac: np.ndarray = policy(ob)
+        ac: np.ndarray = policy.get_action(ptu.from_numpy(ob))
 
         # TODO: use that action to take a step in the environment
         next_ob, rew, done, _ = env.step(ac) 
