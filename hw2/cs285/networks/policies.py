@@ -59,10 +59,14 @@ class MLPPolicy(nn.Module):
     def get_action(self, obs: np.ndarray) -> np.ndarray:
         """Takes a single observation (as a numpy array) and returns a single action (as a numpy array)."""
         # TODO: implement get_action
-        action = torch.argmax(torch.tensor(self.forward(torch.tensor(obs))))
-        #print(f"Here in action : {action}, action type : {action.dtype}")
 
-        return int(action)
+        ac_dist = self.forward(obs)
+        action = ac_dist.rsample() # Reparametrisation trick : Enables gradient flow through sampling
+
+        if not self.discrete:
+            action = torch.clamp(action, min=-1.0, max=1.0) # Restriction between -1 and 1
+
+        return action.numpy()
 
     def forward(self, obs: torch.FloatTensor):
         """
@@ -72,14 +76,16 @@ class MLPPolicy(nn.Module):
         """
         if self.discrete:
             # TODO: define the forward pass for a policy with a discrete action space.
-            result = self.logits_net(obs)
-            logProbs = F.log_softmax(result)
+            logits = self.logits_net(obs)
+            ac_dist = distributions.Categorical(logits=logits)
+            # log_probs = F.log_softmax(logits) 
         else:
             # TODO: define the forward pass for a policy with a continuous action space.
-            # TODO: Change this later
-            logProbs = self.logits_net(obs)
+            mean = self.mean_net(obs)
+            std = torch.exp(self.logstd)
+            ac_dist = distributions.Normal(mean, std)
             
-        return logProbs
+        return ac_dist 
 
     def update(self, obs: np.ndarray, actions: np.ndarray, *args, **kwargs) -> dict:
         """Performs one iteration of gradient descent on the provided batch of data."""
@@ -101,10 +107,18 @@ class MLPPolicyPG(MLPPolicy):
         advantages = ptu.from_numpy(advantages).to(ptu.device)
 
         # TODO: implement the policy gradient actor update.
-        lossFn = nn.NLLLoss(reduction = 'none')
         self.optimizer.zero_grad()
-        loss = torch.sum(torch.dot(lossFn(self.forward(obs), actions.type(torch.LongTensor).to(ptu.device)), advantages))
+
+        log_prob = self.forward(obs).log_prob(actions).sum(dim=-1)
+
+        if not self.discrete:
+            log_prob_correction = torch.log(1 - actions**2 + 1e-6).sum(dim=-1)
+            log_prob = log_prob - log_prob_correction
+
+        loss = -1*torch.dot(log_prob, advantages).mean()
         loss.backward()
+
+        self.optimizer.step()
 
         return {
             "Actor Loss": ptu.to_numpy(loss),

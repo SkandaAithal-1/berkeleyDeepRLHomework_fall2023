@@ -75,7 +75,8 @@ def run_training_loop(args):
 
         # trajs should be a list of dictionaries of NumPy arrays, where each dictionary corresponds to a trajectory.
         # this line converts this into a single dictionary of lists of NumPy arrays.
-        trajs_dict = {k: np.array([np.array(traj[k]) for traj in trajs]) for k in trajs[0]}
+        trajs_dict = {k: [traj[k] for traj in trajs] for k in trajs[0]}
+
 
         # TODO: train the agent using the sampled trajectories and the agent's update function
         train_info: dict = agent.update(trajs_dict["observation"], trajs_dict["action"], trajs_dict["reward"], trajs_dict["terminal"])
@@ -84,7 +85,7 @@ def run_training_loop(args):
             # save eval metrics
             print("\nCollecting data for eval...")
             eval_trajs, eval_envsteps_this_batch = utils.sample_trajectories(
-                env, agent.actor, args.eval_batch_size, max_ep_len
+                env, agent.actor, args.eval_batch_size, max_ep_len,
             )
 
             logs = utils.compute_metrics(trajs, eval_trajs)
